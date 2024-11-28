@@ -1,4 +1,10 @@
-import edu.neu.coe.csye7200.asstwc.WebCrawler.{canParse, wget}
+// WebCrawler.scala
+package com.project.webcrawler
+
+import com.project.webcrawler.WebCrawler.{canParse, wget}
+import com.project.webcrawler.actors.WebCrawlerMaster
+import com.project.webcrawler.actors.Start
+import com.project.webcrawler.URLHeuristics.{getPriority, shouldBeIgnored}
 import java.net.{MalformedURLException, URL}
 import scala.collection.immutable.Queue
 import scala.concurrent._
@@ -9,6 +15,7 @@ import scala.util._
 import scala.util.control.NonFatal
 import scala.util.matching.Regex
 import scala.xml.Node
+import akka.actor.{ActorSystem, Props}
 
 /**
  * Class to perform a web crawl.
@@ -30,7 +37,7 @@ case class WebCrawler(max: Int, parallelism: Int = 8) {
     // NOTE: this is not tail-recursive since inner is invoked within the for comprehension.
     def inner(result: Seq[URL], queue: Queue[URL], m: Int): Future[Seq[URL]] = {
       if (result.nonEmpty) println(s"crawl: retrieved ${result.size} URLs")
-      import edu.neu.coe.csye7200.asstwc.QueueOps._
+      import com.project.webcrawler.QueueOps._
       m -> queue.dequeueN(parallelism) match {
         case (0, _) =>
           Future(result)
@@ -49,7 +56,6 @@ case class WebCrawler(max: Int, parallelism: Int = 8) {
           }
       }
     }
-
     inner(Nil, Queue().appendedAll(us), max)
   }
 
@@ -76,10 +82,10 @@ object WebCrawler extends App {
   def crawlWeb(ws: Seq[String]): Unit = {
     MonadOps.sequence(ws map getURL) match {
       case Success(us) =>
-        import scala.concurrent.ExecutionContext.Implicits.global
-        val usf = WebCrawler(20).crawl(us)
-        Await.ready(usf, Duration("90 second"))
-        for (us <- usf) println(s"Links: ${us.sortBy(_.toString)}")
+        val urlsToCrawl = us
+        val system = ActorSystem("CrawlerSystem")
+        val master = system.actorOf(Props[WebCrawlerMaster], "master")
+        master ! Start(urlsToCrawl.toList)
       case Failure(z) => println(s"Failure: $z")
     }
   }
@@ -135,7 +141,6 @@ object WebCrawler extends App {
     // Hint: write as two nested for-comprehensions: the outer one (first) based on Seq, the inner (second) based on Try.
     // In the latter, use the method createURL(Option[URL], String) to get the appropriate URL for a relative link.
     // Don't forget to run it through validateURL.
-    // 16 points.
     def getURLs(ns: Node): Seq[Try[URL]] = {
       for {
         href <- (ns \\ "a").flatMap(node => node.attribute("href")).map(_.text).toList
@@ -150,24 +155,18 @@ object WebCrawler extends App {
         }
       }
     }
-    // TO BE IMPLEMENTED
-
-    // END SOLUTION
 
     def getLinks(g: String): Try[Seq[URL]] = {
       val ny: Try[Node] = HTMLParser.parse(g) recoverWith { case f => Failure(new RuntimeException(s"parse problem with URL $url: $f")) }
       for (n <- ny; uys = getURLs(n); us <- MonadOps.sequenceForgiveSubsequent(uys) { case _: WebCrawlerProtocolException => true; case _ => false }) yield us
     }
     // Hint: write as a for-comprehension, using getURLContent (above) and getLinks above. You will also need MonadOps.scala.asFuture
-    // 9 points.
 
-    // TO BE IMPLEMENTED
     for {
       content <- getURLContent(url)
       linksTry = getLinks(content)
       links <- MonadOps.asFuture(linksTry)
     } yield links
-    // END SOLUTION
   }
 
   /**
