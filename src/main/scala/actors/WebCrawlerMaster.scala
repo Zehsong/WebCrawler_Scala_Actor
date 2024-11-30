@@ -15,11 +15,16 @@ case class Done(result: List[URL])
 class WebCrawlerMaster extends Actor {
 
   val webCrawler = WebCrawler(20, 8)
-  createWorkers(10)
+  //  createWorkers(2)
+  override def preStart(): Unit = {
+    println("Initializing workers")
+    createWorkers(2)
+    println(s"Workers initialized: $workers")
+  }
 
   private val inDegreeMap = scala.collection.mutable.HashMap[URL, Int]().withDefaultValue(0)
-
-  private val visitedUrls = scala.collection.mutable.Set[URL]() // Avoid Duplication
+  // Avoid Duplication. Also I just realized I need page rank BRUHH, might just keep this here still
+  private val visitedUrls = scala.collection.mutable.Set[URL]()
   private val urlComparator: Comparator[PrioritizedURL] =
     (url1: PrioritizedURL, url2: PrioritizedURL) => url1.priority.compare(url2.priority)
   private val queue = new PriorityBlockingQueue[PrioritizedURL](11, urlComparator)
@@ -27,6 +32,7 @@ class WebCrawlerMaster extends Actor {
 
   def receive: Receive = {
     case Start(urls) =>
+      println("start crawl send urls")
       urls.filterNot(shouldBeIgnored).foreach { url =>
         val priority = getPriority(url)
         queue.add(PrioritizedURL(url, priority))
@@ -34,6 +40,7 @@ class WebCrawlerMaster extends Actor {
       sendWorkToFreeWorker()
 
     case Done(result) =>
+      println("Done Crawl Get More")
       result.filterNot(shouldBeIgnored).foreach { url =>
         val priority = getPriority(url)
         queue.add(PrioritizedURL(url, priority))
@@ -58,31 +65,44 @@ class WebCrawlerMaster extends Actor {
     Option(queue.poll()).foreach { prioritizedUrl =>
       if (!visitedUrls.contains(prioritizedUrl.url)) {
         visitedUrls.add(prioritizedUrl.url)
-        val worker = getNextWorker()
-        worker ! prioritizedUrl.url
+        getNextWorker() match {
+          case Some(worker) =>
+            println(s"Sending URL ${prioritizedUrl.url} to worker: ${worker.path}")
+            worker ! prioritizedUrl.url
+          case None =>
+            println(s"No workers available to process URL: ${prioritizedUrl.url}")
+        }
+      } else {
+        println(s"URL ${prioritizedUrl.url} has already been visited")
       }
     }
   }
 
-  private def getNextWorker(): ActorRef = {
-    // Rotate list of workers so load is distributed evenly across all workers.
-    workers = workers match {
-      case head :: tail => tail :+ head
-      case _ => Nil
-    }
-    // Return first worker in rotated list.
-    workers.head
-  }
 
-  // Method to initialize worker actors.
   def createWorkers(n: Int): Unit = {
     workers = (1 to n).map { _ =>
-      context.actorOf(Props(classOf[WebCrawlerWorker], webCrawler))
+      val worker = context.actorOf(Props(classOf[WebCrawlerWorker], webCrawler))
+      println(s"Worker created with path: ${worker.path}")
+      worker
     }.toList
+    println(s"Total workers created: ${workers.size}")
+  }
+
+  private def getNextWorker(): Option[ActorRef] = {
+    println(s"Workers list before rotation: $workers")
+    workers = workers match {
+      case Nil =>
+        println("No workers available in the list")
+        Nil
+      case head :: tail =>
+        tail :+ head
+    }
+    println(s"Workers list after rotation: $workers")
+    workers.headOption
   }
 
   def printPageRank(): Unit = {
-    val sortedURLs = inDegreeMap.toSeq.sortBy(-_._2) // Sorting in descending order of in-degree
+    val sortedURLs = inDegreeMap.toSeq.sortBy(-_._2)
     sortedURLs.foreach { case (url, inDegree) =>
       println(s"URL: $url, In-degree: $inDegree")
     }
