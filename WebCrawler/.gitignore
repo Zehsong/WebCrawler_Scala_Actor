@@ -1,0 +1,55 @@
+# Scala/SBT specific
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+.history
+.cache
+.lib/
+*.class
+*.log
+
+# SBT specific
+.bsp/
+.metals/
+.bloop/
+project/target/
+project/project/
+
+# IntelliJ IDEA specific
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+out/
+
+# VS Code specific
+.vscode/
+.metals/
+.bloop/
+.ammonite/
+
+# Neo4j specific
+neo4j-data/
+*.db
+*.dump
+
+# Spark specific
+spark-warehouse/
+metastore_db/
+derby.log
+
+# Mac OS specific
+.DS_Store
+
+# Temporary files
+*.swp
+*~
+
+# Crawler output
+crawler_output/
+*.dot
+*.png
+*.svg

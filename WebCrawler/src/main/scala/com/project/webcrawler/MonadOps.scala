@@ -1,4 +1,4 @@
-package edu.neu.coe.csye7200.asstwc
+package com.project.webcrawler
 
 import java.util.concurrent.TimeoutException
 import scala.concurrent.{ExecutionContext, Future, Promise}
