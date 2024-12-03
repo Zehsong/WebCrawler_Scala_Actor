@@ -13,7 +13,6 @@ object WebCrawlerConfig {
   val maxDepth: Int = config.getInt("webcrawler.maxDepth")
   val parallelism: Int = config.getInt("webcrawler.parallelism")
 
-  // Convert Java Duration to Scala FiniteDuration
   val crawlTimeout: FiniteDuration = {
     val duration = config.getDuration("webcrawler.crawlTimeout")
     FiniteDuration(duration.toMillis, TimeUnit.MILLISECONDS)
